@@ -97,12 +97,14 @@ RUN if [ "$TF_ANNOTATION" = "yes" ]; then \
     fi
 
 # Auto segmentation support. by Mohammad
+# changed by Luiz 08 May 2020
+RUN git clone https://github.com/Tauffer-Consulting/Mask_RCNN.git
+RUN cd Mask_RCNN && pip install .
+
 ARG AUTO_SEGMENTATION
 ENV AUTO_SEGMENTATION=${AUTO_SEGMENTATION}
 ENV AUTO_SEGMENTATION_PATH=${HOME}/Mask_RCNN
-RUN if [ "$AUTO_SEGMENTATION" = "yes" ]; then \
-    bash -i /tmp/components/auto_segmentation/install.sh; \
-    fi
+COPY mask_rcnn_camus.h5 ${HOME}/Mask_RCNN/mask_rcnn_camus.h5
 
 # Install and initialize CVAT, copy all necessary files
 COPY cvat/requirements/ /tmp/requirements/
@@ -110,7 +112,6 @@ COPY supervisord.conf mod_wsgi.conf wait-for-it.sh manage.py ${HOME}/
 RUN python3 -m pip install --no-cache-dir -r /tmp/requirements/${DJANGO_CONFIGURATION}.txt
 # pycocotools package is impossible to install with its dependencies by one pip install command
 RUN python3 -m pip install --no-cache-dir pycocotools==2.0.0
-
 
 # CUDA support
 ARG CUDA_SUPPORT

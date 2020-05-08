@@ -24,6 +24,8 @@ from cvat.apps.engine.log import slogger
 import sys
 import skimage.io
 from skimage.measure import find_contours, approximate_polygon
+from mrcnn.config import Config
+
 
 def run_tensorflow_auto_segmentation(frame_provider, labels_mapping, treshold):
     def _convert_to_int(boolean_mask):
@@ -48,32 +50,49 @@ def run_tensorflow_auto_segmentation(frame_provider, labels_mapping, treshold):
     import mrcnn.model as modellib
 
     # Import COCO config
-    sys.path.append(os.path.join(ROOT_DIR, "samples/coco/"))  # To find local version
-    import coco
+    # sys.path.append(os.path.join(ROOT_DIR, "samples/coco/"))  # To find local version
+    # import coco
 
     # Directory to save logs and trained model
     MODEL_DIR = os.path.join(ROOT_DIR, "logs")
 
     # Local path to trained weights file
-    COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
+    COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_camus.h5")
     if COCO_MODEL_PATH is None:
         raise OSError('Model path env not found in the system.')
     job = rq.get_current_job()
 
     ## CONFIGURATION
 
-    class InferenceConfig(coco.CocoConfig):
-        # Set batch size to 1 since we'll be running inference on
-        # one image at a time. Batch size = GPU_COUNT * IMAGES_PER_GPU
+    class InferenceConfig(Config):
+        """Configuration for training on the Camus dataset.
+        Derives from the base Config class and overrides values specific
+        to the Camus dataset.
+        """
+        # Give the configuration a recognizable name
+        NAME = "camus"
+
+        # Train on 1 GPU and 8 images per GPU. We can put multiple images on each
+        # GPU because the images are small. Batch size is 8 (GPUs * images/GPU).
         GPU_COUNT = 1
         IMAGES_PER_GPU = 1
+
+        # # Number of classes (including background)
+        # NUM_CLASSES = 1 + 3  # background + 3 heart structures
+        #
+        # # Use small images for faster training. Set the limits of the small side
+        # # the large side, and that determines the image shape.
+        # IMAGE_MIN_DIM = 128
+        # IMAGE_MAX_DIM = 128
+        #
+        # # Use smaller anchors because our image and objects are small
+        # RPN_ANCHOR_SCALES = (8, 16, 32, 64, 128)  # anchor side in pixels
 
     # Print config details
     config = InferenceConfig()
     config.display()
 
     ## CREATE MODEL AND LOAD TRAINED WEIGHTS
-
     # Create model object in inference mode.
     model = modellib.MaskRCNN(mode="inference", model_dir=MODEL_DIR, config=config)
     # Load weights trained on MS-COCO
@@ -207,24 +226,30 @@ def create(request, tid):
         db_labels = {db_label.id:db_label.name for db_label in db_labels}
 
         # COCO Labels
-        auto_segmentation_labels = { "BG": 0,
-            "person": 1, "bicycle": 2, "car": 3, "motorcycle": 4, "airplane": 5,
-            "bus": 6, "train": 7, "truck": 8, "boat": 9, "traffic_light": 10,
-            "fire_hydrant": 11, "stop_sign": 12, "parking_meter": 13, "bench": 14,
-            "bird": 15, "cat": 16, "dog": 17, "horse": 18, "sheep": 19, "cow": 20,
-            "elephant": 21, "bear": 22, "zebra": 23, "giraffe": 24, "backpack": 25,
-            "umbrella": 26, "handbag": 27, "tie": 28, "suitcase": 29, "frisbee": 30,
-            "skis": 31, "snowboard": 32, "sports_ball": 33, "kite": 34, "baseball_bat": 35,
-            "baseball_glove": 36, "skateboard": 37, "surfboard": 38, "tennis_racket": 39,
-            "bottle": 40, "wine_glass": 41, "cup": 42, "fork": 43, "knife": 44, "spoon": 45,
-            "bowl": 46, "banana": 47, "apple": 48, "sandwich": 49, "orange": 50, "broccoli": 51,
-            "carrot": 52, "hot_dog": 53, "pizza": 54, "donut": 55, "cake": 56, "chair": 57,
-            "couch": 58, "potted_plant": 59, "bed": 60, "dining_table": 61, "toilet": 62,
-            "tv": 63, "laptop": 64, "mouse": 65, "remote": 66, "keyboard": 67, "cell_phone": 68,
-            "microwave": 69, "oven": 70, "toaster": 71, "sink": 72, "refrigerator": 73,
-            "book": 74, "clock": 75, "vase": 76, "scissors": 77, "teddy_bear": 78, "hair_drier": 79,
-            "toothbrush": 80
-            }
+        auto_segmentation_labels = {
+            "0": 0,
+            "1": 1,
+            "2": 2,
+            "3": 3
+        }
+        # auto_segmentation_labels = { "BG": 0,
+        #     "person": 1, "bicycle": 2, "car": 3, "motorcycle": 4, "airplane": 5,
+        #     "bus": 6, "train": 7, "truck": 8, "boat": 9, "traffic_light": 10,
+        #     "fire_hydrant": 11, "stop_sign": 12, "parking_meter": 13, "bench": 14,
+        #     "bird": 15, "cat": 16, "dog": 17, "horse": 18, "sheep": 19, "cow": 20,
+        #     "elephant": 21, "bear": 22, "zebra": 23, "giraffe": 24, "backpack": 25,
+        #     "umbrella": 26, "handbag": 27, "tie": 28, "suitcase": 29, "frisbee": 30,
+        #     "skis": 31, "snowboard": 32, "sports_ball": 33, "kite": 34, "baseball_bat": 35,
+        #     "baseball_glove": 36, "skateboard": 37, "surfboard": 38, "tennis_racket": 39,
+        #     "bottle": 40, "wine_glass": 41, "cup": 42, "fork": 43, "knife": 44, "spoon": 45,
+        #     "bowl": 46, "banana": 47, "apple": 48, "sandwich": 49, "orange": 50, "broccoli": 51,
+        #     "carrot": 52, "hot_dog": 53, "pizza": 54, "donut": 55, "cake": 56, "chair": 57,
+        #     "couch": 58, "potted_plant": 59, "bed": 60, "dining_table": 61, "toilet": 62,
+        #     "tv": 63, "laptop": 64, "mouse": 65, "remote": 66, "keyboard": 67, "cell_phone": 68,
+        #     "microwave": 69, "oven": 70, "toaster": 71, "sink": 72, "refrigerator": 73,
+        #     "book": 74, "clock": 75, "vase": 76, "scissors": 77, "teddy_bear": 78, "hair_drier": 79,
+        #     "toothbrush": 80
+        #     }
 
         labels_mapping = {}
         for key, labels in db_labels.items():
