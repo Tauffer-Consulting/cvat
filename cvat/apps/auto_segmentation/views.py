@@ -23,6 +23,7 @@ from cvat.apps.engine.log import slogger
 
 import sys
 import skimage.io
+import skimage
 from skimage.measure import find_contours, approximate_polygon
 from mrcnn.config import Config
 
@@ -78,15 +79,15 @@ def run_tensorflow_auto_segmentation(frame_provider, labels_mapping, treshold):
         IMAGES_PER_GPU = 1
 
         # # Number of classes (including background)
-        # NUM_CLASSES = 1 + 3  # background + 3 heart structures
+        NUM_CLASSES = 1 + 3  # background + 3 heart structures
         #
         # # Use small images for faster training. Set the limits of the small side
         # # the large side, and that determines the image shape.
-        # IMAGE_MIN_DIM = 128
-        # IMAGE_MAX_DIM = 128
+        IMAGE_MIN_DIM = 128
+        IMAGE_MAX_DIM = 128
         #
         # # Use smaller anchors because our image and objects are small
-        # RPN_ANCHOR_SCALES = (8, 16, 32, 64, 128)  # anchor side in pixels
+        RPN_ANCHOR_SCALES = (8, 16, 32, 64, 128)  # anchor side in pixels
 
     # Print config details
     config = InferenceConfig()
@@ -111,6 +112,8 @@ def run_tensorflow_auto_segmentation(frame_provider, labels_mapping, treshold):
         job.save_meta()
 
         image = skimage.io.imread(image_bytes)
+        image = skimage.color.gray2rgb(image)
+        #image, _, _, _, _ = modellib.load_image_gt(dataset_val, config, id)
 
         # for multiple image detection, "batch size" must be equal to number of images
         r = model.detect([image], verbose=1)
