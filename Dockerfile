@@ -104,7 +104,7 @@ RUN cd Mask_RCNN && pip install .
 ARG AUTO_SEGMENTATION
 ENV AUTO_SEGMENTATION=${AUTO_SEGMENTATION}
 ENV AUTO_SEGMENTATION_PATH=${HOME}/Mask_RCNN
-COPY mask_rcnn_camus.h5 ${HOME}/Mask_RCNN/mask_rcnn_camus.h5
+COPY mask_rcnn_camus.h5 ${HOME}/Mask_RCNN/mask_rcnn_chambers.h5
 
 # Install and initialize CVAT, copy all necessary files
 COPY cvat/requirements/ /tmp/requirements/

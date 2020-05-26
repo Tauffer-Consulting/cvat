@@ -42,8 +42,6 @@ def run_tensorflow_auto_segmentation(frame_provider, labels_mapping, treshold):
         segmentation = contour.ravel().tolist()
         return segmentation
 
-    ## INITIALIZATION
-
     # Root directory of the project
     ROOT_DIR = os.environ.get('AUTO_SEGMENTATION_PATH')
     # Import Mask RCNN
@@ -58,20 +56,18 @@ def run_tensorflow_auto_segmentation(frame_provider, labels_mapping, treshold):
     MODEL_DIR = os.path.join(ROOT_DIR, "logs")
 
     # Local path to trained weights file
-    COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_camus.h5")
-    if COCO_MODEL_PATH is None:
+    MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_chambers.h5")
+    if MODEL_PATH is None:
         raise OSError('Model path env not found in the system.')
     job = rq.get_current_job()
 
-    ## CONFIGURATION
-
     class InferenceConfig(Config):
-        """Configuration for training on the Camus dataset.
+        """Configuration for training on the echocardiogram dataset.
         Derives from the base Config class and overrides values specific
-        to the Camus dataset.
+        to the echocardiogram dataset.
         """
         # Give the configuration a recognizable name
-        NAME = "camus"
+        NAME = "chamber_detector"
 
         # Train on 1 GPU and 8 images per GPU. We can put multiple images on each
         # GPU because the images are small. Batch size is 8 (GPUs * images/GPU).
@@ -79,27 +75,28 @@ def run_tensorflow_auto_segmentation(frame_provider, labels_mapping, treshold):
         IMAGES_PER_GPU = 1
 
         # # Number of classes (including background)
-        NUM_CLASSES = 1 + 3  # background + 3 heart structures
+        NUM_CLASSES = 1 + 1  # background + chamber
         #
         # # Use small images for faster training. Set the limits of the small side
         # # the large side, and that determines the image shape.
-        IMAGE_MIN_DIM = 128
-        IMAGE_MAX_DIM = 128
-        #
-        # # Use smaller anchors because our image and objects are small
-        RPN_ANCHOR_SCALES = (8, 16, 32, 64, 128)  # anchor side in pixels
+        IMAGE_MIN_DIM = 512
+        IMAGE_MAX_DIM = 1028
 
     # Print config details
     config = InferenceConfig()
     config.display()
 
-    ## CREATE MODEL AND LOAD TRAINED WEIGHTS
     # Create model object in inference mode.
-    model = modellib.MaskRCNN(mode="inference", model_dir=MODEL_DIR, config=config)
-    # Load weights trained on MS-COCO
-    model.load_weights(COCO_MODEL_PATH, by_name=True)
+    model = modellib.MaskRCNN(
+        mode="inference",
+        model_dir=MODEL_DIR,
+        config=config
+    )
 
-    ## RUN OBJECT DETECTION
+    # Load weights
+    model.load_weights(MODEL_PATH, by_name=True)
+
+    # Run detection
     result = {}
     frames = frame_provider.get_frames(frame_provider.Quality.ORIGINAL)
     for image_num, (image_bytes, _) in enumerate(frames):
@@ -113,7 +110,7 @@ def run_tensorflow_auto_segmentation(frame_provider, labels_mapping, treshold):
 
         image = skimage.io.imread(image_bytes)
         image = skimage.color.gray2rgb(image)
-        #image, _, _, _, _ = modellib.load_image_gt(dataset_val, config, id)
+        # image, _, _, _, _ = modellib.load_image_gt(dataset_val, config, id)
 
         # for multiple image detection, "batch size" must be equal to number of images
         r = model.detect([image], verbose=1)
@@ -123,7 +120,7 @@ def run_tensorflow_auto_segmentation(frame_provider, labels_mapping, treshold):
         for index, c_id in enumerate(r['class_ids']):
             if c_id in labels_mapping.keys():
                 if r['scores'][index] >= treshold:
-                    mask = _convert_to_int(r['masks'][:,:,index])
+                    mask = _convert_to_int(r['masks'][:, :, index])
                     segmentation = _convert_to_segmentation(mask)
                     label = labels_mapping[c_id]
                     if label not in result:
@@ -132,6 +129,7 @@ def run_tensorflow_auto_segmentation(frame_provider, labels_mapping, treshold):
                         [image_num, segmentation])
 
     return result
+
 
 def convert_to_cvat_format(data):
     result = {
@@ -157,6 +155,7 @@ def convert_to_cvat_format(data):
 
     return result
 
+
 def create_thread(tid, labels_mapping, user):
     try:
         # If detected object accuracy bigger than threshold it will returend
@@ -181,7 +180,7 @@ def create_thread(tid, labels_mapping, user):
 
         # Modify data format and save
         result = convert_to_cvat_format(result)
-        serializer = LabeledDataSerializer(data = result)
+        serializer = LabeledDataSerializer(data=result)
         if serializer.is_valid(raise_exception=True):
             put_task_data(tid, result)
         slogger.glob.info('auto segmentation for task {} done'.format(tid))
@@ -191,6 +190,7 @@ def create_thread(tid, labels_mapping, user):
         except Exception:
             slogger.glob.exception('exception was occured during auto segmentation of the task {}'.format(tid), exc_info=True)
         raise ex
+
 
 @api_view(['POST'])
 @login_required
@@ -226,14 +226,12 @@ def create(request, tid):
             raise Exception("The process is already running")
 
         db_labels = db_task.label_set.prefetch_related('attributespec_set').all()
-        db_labels = {db_label.id:db_label.name for db_label in db_labels}
+        db_labels = {db_label.id: db_label.name for db_label in db_labels}
 
         # COCO Labels
         auto_segmentation_labels = {
-            "0": 0,
-            "1": 1,
-            "2": 2,
-            "3": 3
+            "BG": 0,
+            "chamber": 1,
         }
         # auto_segmentation_labels = { "BG": 0,
         #     "person": 1, "bicycle": 2, "car": 3, "motorcycle": 4, "airplane": 5,
@@ -278,6 +276,7 @@ def create(request, tid):
         return HttpResponseBadRequest(str(ex))
 
     return HttpResponse()
+
 
 @login_required
 @permission_required(perm=['engine.task.access'],
