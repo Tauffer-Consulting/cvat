@@ -413,7 +413,7 @@ class CvatTaskDataExtractor(datumaro.SourceExtractor):
         if include_images:
             frame_provider = FrameProvider(task_data.db_task.data)
 
-        for frame_data in task_data.group_by_frame(include_empty=include_images):
+        for frame_data in task_data.group_by_frame(include_empty=True):
             loader = None
             if include_images:
                 loader = lambda p, i=frame_data.idx: frame_provider.get_frame(i,
@@ -518,6 +518,8 @@ class CvatTaskDataExtractor(datumaro.SourceExtractor):
                 x0, y0, x1, y1 = anno_points
                 anno = datumaro.Bbox(x0, y0, x1 - x0, y1 - y0,
                     label=anno_label, attributes=anno_attr, group=anno_group)
+            elif shape_obj.type == ShapeType.CUBOID:
+                continue # Datumaro does not support cuboids
             else:
                 raise Exception("Unknown shape type '%s'" % shape_obj.type)
 
