@@ -85,7 +85,7 @@ def run_tensorflow_auto_segmentation(frame_provider, labels_mapping, treshold):
         # # Use small images for faster training. Set the limits of the small side
         # # the large side, and that determines the image shape.
         IMAGE_MIN_DIM = 512
-        IMAGE_MAX_DIM = 1028
+        IMAGE_MAX_DIM = 1024
 
     # Print config details
     config = InferenceConfig()
